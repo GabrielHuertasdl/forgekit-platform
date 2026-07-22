@@ -1,16 +1,19 @@
 import type { ComponentType } from 'react'
 
-export type ToolCategory =
-  | 'text'
-  | 'image'
-  | 'code'
-  | 'data'
-  | 'productivity'
-  | 'developer'
-  | 'ai'
-  | 'conversion'
-  | 'security'
-  | 'math'
+export const TOOL_CATEGORIES = [
+  'text',
+  'image',
+  'code',
+  'data',
+  'productivity',
+  'developer',
+  'ai',
+  'conversion',
+  'security',
+  'math',
+] as const
+
+export type ToolCategory = (typeof TOOL_CATEGORIES)[number]
 
 export type ToolStateMode = 'stateless' | 'workspaceAware'
 
