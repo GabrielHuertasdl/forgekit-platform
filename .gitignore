@@ -32,5 +32,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# drizzle
-/drizzle/
+# drizzle — migration files ARE committed (needed for deployment)
+# drizzle/meta is large and auto-regenerated, commit only the SQL
+/drizzle/meta/
