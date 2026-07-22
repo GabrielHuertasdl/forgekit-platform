@@ -15,13 +15,18 @@ const envSchema = z.object({
   // App
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
 
-  // Redis (Phase 2)
+  // Redis (Phase 3)
   REDIS_URL: z.string().url().optional(),
 
-  // Stripe (Phase 2)
+  // Stripe
   STRIPE_SECRET_KEY: z.string().startsWith('sk_').optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_').optional(),
+
+  // Stripe Price IDs — one per credit pack
+  STRIPE_PRICE_STARTER: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_POWER: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

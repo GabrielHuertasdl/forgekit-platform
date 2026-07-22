@@ -1,7 +1,7 @@
 import { auth } from '@/platform/auth'
 import { NextResponse } from 'next/server'
 
-const PROTECTED_PREFIXES = ['/dashboard', '/settings']
+const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/billing']
 
 export default auth((req) => {
   const { pathname } = req.nextUrl
