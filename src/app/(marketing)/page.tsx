@@ -8,6 +8,17 @@ import { ToolCard } from '@/ui/components/shared/tool-card'
 export const metadata: Metadata = {
   title: 'ForgeKit — Modular Tools Platform',
   description: 'A modular platform of high-quality micro-tools for developers, writers, and creators.',
+  openGraph: {
+    title: 'ForgeKit — Modular Tools Platform',
+    description: 'A modular platform of high-quality micro-tools for developers, writers, and creators.',
+    type: 'website',
+    url: '/',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ForgeKit — Modular Tools Platform',
+    description: 'A modular platform of high-quality micro-tools for developers, writers, and creators.',
+  },
 }
 
 interface Props {
