@@ -3,7 +3,7 @@ import { signIn } from '@/platform/auth'
 import { Button } from '@/ui/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Sign in',
+  title: 'Sign in — ForgeKit',
 }
 
 interface Props {
@@ -16,10 +16,13 @@ export default async function SignInPage({ searchParams }: Props) {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Welcome to ForgeKit</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in to access your tools and workspace.</p>
+          <div className="text-3xl mb-3">⚡</div>
+          <h1 className="text-2xl font-bold tracking-tight">Your tools are waiting.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Sign in to save your history and unlock premium tools.
+          </p>
         </div>
 
         <form
@@ -32,6 +35,10 @@ export default async function SignInPage({ searchParams }: Props) {
             Continue with Google
           </Button>
         </form>
+
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          Free tools work without an account.
+        </p>
       </div>
     </div>
   )

@@ -8,14 +8,30 @@ import { getUserRecentUsage } from '@/platform/analytics'
 import { toolRegistry } from '@/tools'
 import { db } from '@/db/client'
 import { creditTransactions } from '@/db/schema'
+import { ToolCard } from '@/ui/components/shared/tool-card'
 
-export const metadata: Metadata = { title: 'Dashboard' }
+export const metadata: Metadata = { title: 'Dashboard — ForgeKit' }
+
+const RECOMMENDED_SLUGS = [
+  'password-generator',
+  'json-formatter',
+  'case-converter',
+  'text-counter',
+]
+
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
 
 export default async function DashboardPage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/sign-in?callbackUrl=/dashboard')
 
   const userId = session.user.id
+  const firstName = session.user.name?.split(' ')[0] ?? session.user.name ?? ''
 
   const [balance, recentUsage, recentTransactions] = await Promise.all([
     getBalance(userId),
@@ -33,58 +49,85 @@ export default async function DashboardPage() {
     return manifest ? [{ manifest, usedAt }] : []
   })
 
-  const isEmpty = recentTools.length === 0 && recentTransactions.length === 0
+  const recommendedManifests = RECOMMENDED_SLUGS.flatMap((slug) => {
+    const m = toolRegistry.getManifest(slug)
+    return m ? [m] : []
+  })
+
+  const hasActivity = recentTools.length > 0 || recentTransactions.length > 0
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        {session.user.name && (
-          <p className="text-muted-foreground mt-1">Welcome back, {session.user.name}.</p>
-        )}
-      </header>
+    <div className="max-w-5xl mx-auto px-4 py-10">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8 gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">{getGreeting()}{firstName ? ',' : ''}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{firstName || 'Welcome back'}</h1>
+        </div>
+        <Link
+          href="/"
+          className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Explore tools →
+        </Link>
+      </div>
 
-      {/* Stats row */}
-      <div className="grid gap-4 sm:grid-cols-3 mb-10">
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="text-sm text-muted-foreground">Credits</p>
+      {/* Quick search */}
+      <form action="/" method="GET" className="mb-8">
+        <input
+          type="search"
+          name="q"
+          placeholder="Search all tools…"
+          className="w-full h-10 px-4 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label="Search tools"
+          autoComplete="off"
+        />
+      </form>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 mb-10">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Credits</p>
           <p className="text-3xl font-bold tabular-nums mt-1">{balance.toLocaleString()}</p>
           <Link href="/billing" className="text-xs text-primary hover:underline mt-2 block">
-            Buy more →
+            Buy more credits →
           </Link>
         </div>
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="text-sm text-muted-foreground">Tools used (recent)</p>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tools used</p>
           <p className="text-3xl font-bold tabular-nums mt-1">{recentUsage.length}</p>
           <Link href="/" className="text-xs text-primary hover:underline mt-2 block">
-            Browse tools →
-          </Link>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="text-sm text-muted-foreground">Available tools</p>
-          <p className="text-3xl font-bold tabular-nums mt-1">{toolRegistry.size()}</p>
-          <Link href="/" className="text-xs text-primary hover:underline mt-2 block">
-            See all →
+            Browse all tools →
           </Link>
         </div>
       </div>
 
-      {/* Recently used tools */}
+      {/* Recently used */}
       {recentTools.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-4">Recently used</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+            Continue where you left off
+          </h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {recentTools.map(({ manifest, usedAt }) => (
               <li key={`${manifest.slug}-${usedAt.getTime()}`}>
-                <Link
-                  href={`/tools/${manifest.slug}`}
-                  className="flex flex-col gap-1 p-4 rounded-lg border border-border hover:bg-muted transition-colors h-full"
-                >
-                  <p className="font-medium text-sm">{manifest.name}</p>
-                  <p className="text-xs text-muted-foreground mt-auto">
-                    {usedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </p>
-                </Link>
+                <ToolCard manifest={manifest} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Recommended (shown when no history) */}
+      {recentTools.length === 0 && (
+        <section className="mb-10">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+            Start here
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recommendedManifests.map((m) => (
+              <li key={m.slug}>
+                <ToolCard manifest={m} />
               </li>
             ))}
           </ul>
@@ -94,8 +137,10 @@ export default async function DashboardPage() {
       {/* Credit history */}
       {recentTransactions.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-4">Credit history</h2>
-          <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+            Credit history
+          </h2>
+          <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
             {recentTransactions.map((tx) => (
               <li key={tx.id} className="flex items-center justify-between px-4 py-3 bg-card">
                 <div>
@@ -110,7 +155,7 @@ export default async function DashboardPage() {
                 </div>
                 <span
                   className={`text-sm font-semibold tabular-nums ${
-                    tx.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-foreground'
+                    tx.amount > 0 ? 'text-green-600' : 'text-foreground'
                   }`}
                 >
                   {tx.amount > 0 ? '+' : ''}
@@ -119,15 +164,16 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ul>
+          <Link href="/billing" className="text-xs text-primary hover:underline mt-3 block">
+            Manage credits →
+          </Link>
         </section>
       )}
 
-      {isEmpty && (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="mb-2">No activity yet.</p>
-          <Link href="/" className="text-sm text-primary hover:underline">
-            Try your first tool →
-          </Link>
+      {!hasActivity && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="text-base font-medium mb-1">No activity yet.</p>
+          <p className="text-sm mb-4">Try one of the tools above to get started.</p>
         </div>
       )}
     </div>
