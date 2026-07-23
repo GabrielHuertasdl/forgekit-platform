@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { signIn } from '@/platform/auth'
 import { Button } from '@/ui/components/ui/button'
@@ -16,12 +17,20 @@ export default async function SignInPage({ searchParams }: Props) {
 
   return (
     <div className="w-full max-w-sm">
+      <div className="text-center mb-8">
+        <Link
+          href="/"
+          className="font-semibold text-base tracking-tight text-foreground hover:opacity-70 transition-opacity"
+        >
+          ForgeKit
+        </Link>
+      </div>
+
       <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
-        <div className="mb-8 text-center">
-          <div className="text-3xl mb-3">⚡</div>
+        <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold tracking-tight">Your tools are waiting.</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to save your history and unlock premium tools.
+            Sign in to track your history and manage credits.
           </p>
         </div>
 

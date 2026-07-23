@@ -23,7 +23,7 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold tracking-tight mb-1">Credits</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-1">Credits</h1>
       <p className="text-sm text-muted-foreground mb-8">
         One-time purchase. No subscription. Credits never expire.
       </p>

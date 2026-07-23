@@ -88,14 +88,14 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 mb-10">
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Credits</p>
-          <p className="text-3xl font-bold tabular-nums mt-1">{balance.toLocaleString()}</p>
+          <p className="text-4xl font-bold tabular-nums mt-1">{balance.toLocaleString()}</p>
           <Link href="/billing" className="text-xs text-primary hover:underline mt-2 block">
             Buy more credits →
           </Link>
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tools used</p>
-          <p className="text-3xl font-bold tabular-nums mt-1">{recentUsage.length}</p>
+          <p className="text-4xl font-bold tabular-nums mt-1">{recentUsage.length}</p>
           <Link href="/" className="text-xs text-primary hover:underline mt-2 block">
             Browse all tools →
           </Link>
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
       {/* Recently used */}
       {recentTools.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
             Continue where you left off
           </h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
       {/* Recommended (shown when no history) */}
       {recentTools.length === 0 && (
         <section className="mb-10">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
             Start here
           </h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -137,7 +137,7 @@ export default async function DashboardPage() {
       {/* Credit history */}
       {recentTransactions.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
             Credit history
           </h2>
           <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">

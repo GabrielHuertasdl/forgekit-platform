@@ -5,21 +5,9 @@ import * as LucideIcons from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { toolRegistry } from '@/tools'
 import type { ToolManifest } from '@/tools/_registry'
-import { CATEGORY_COLORS } from '@/tools/_registry'
 import { env } from '@/lib/env'
 import { auth } from '@/platform/auth'
-import { cn } from '@/lib/utils'
 import { ToolCard } from '@/ui/components/shared/tool-card'
-
-let getToolUsageCount: ((slug: string) => Promise<number>) | undefined
-
-try {
-  // Analytics import may fail at build time if DB is unavailable
-  const analytics = await import('@/platform/analytics')
-  getToolUsageCount = analytics.getToolUsageCount
-} catch {
-  // Silently degrade — usage count is non-critical
-}
 
 export const dynamicParams = false
 
@@ -91,13 +79,9 @@ export default async function ToolPage({ params }: Props) {
 
   const { manifest, Component } = tool
   const jsonLd = buildJsonLd(manifest)
-  const colors = CATEGORY_COLORS[manifest.category]
   const IconComponent = (LucideIcons as unknown as Record<string, LucideIcon>)[manifest.icon]
 
-  const [session, usageCount] = await Promise.all([
-    auth(),
-    getToolUsageCount ? getToolUsageCount(slug).catch(() => 0) : Promise.resolve(0),
-  ])
+  const session = await auth()
 
   // Related tools — same category, exclude self, max 3
   const relatedManifests = toolRegistry
@@ -128,50 +112,26 @@ export default async function ToolPage({ params }: Props) {
           </nav>
 
           {/* Icon + title */}
-          <div className="flex items-start gap-4 mb-3">
+          <div className="flex items-start gap-3 mb-2">
             {IconComponent && (
-              <div className={cn('p-3 rounded-xl shrink-0', colors.bg)}>
-                <IconComponent className={cn('w-6 h-6', colors.icon)} aria-hidden />
-              </div>
+              <IconComponent className="w-5 h-5 text-muted-foreground shrink-0 mt-1" aria-hidden />
             )}
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">{manifest.name}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{manifest.name}</h1>
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 {manifest.description}
               </p>
             </div>
           </div>
 
-          {/* Trust badges */}
-          <div className="flex flex-wrap items-center gap-2">
-            {manifest.creditsPerUse === 0 ? (
-              <>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium border border-green-200">
-                  Free
-                </span>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium">
-                  No account needed
-                </span>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium">
-                  Works in browser
-                </span>
-              </>
-            ) : (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium">
-                {manifest.creditsPerUse} credit{manifest.creditsPerUse !== 1 ? 's' : ''} per use
-              </span>
-            )}
-            {manifest.status === 'beta' && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
-                beta
-              </span>
-            )}
-            {usageCount > 10 && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
-                Used {usageCount.toLocaleString()}+ times
-              </span>
-            )}
-          </div>
+          {/* Metadata line */}
+          <p className="text-xs text-muted-foreground capitalize ml-8">
+            {manifest.category}
+            {manifest.creditsPerUse === 0
+              ? ' · Free'
+              : ` · ${manifest.creditsPerUse} credit${manifest.creditsPerUse !== 1 ? 's' : ''} per use`}
+            {manifest.status === 'beta' ? ' · Beta' : ''}
+          </p>
         </header>
 
         {/* Tool component */}
@@ -182,7 +142,7 @@ export default async function ToolPage({ params }: Props) {
         {/* Related tools */}
         {relatedManifests.length > 0 && (
           <section className="border-t border-border pt-8 mb-8">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
               Related tools
             </h2>
             <ul className="grid gap-3 sm:grid-cols-3">
