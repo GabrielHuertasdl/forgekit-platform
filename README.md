@@ -1,213 +1,177 @@
 # ForgeKit
 
-Modular platform for micro-tools. One codebase, shared auth + billing + credits + analytics + SEO. Add a new tool in ~30 minutes. Scale to 1,000+ tools without touching platform code.
+**A modular micro-tools platform: one Next.js codebase with shared auth, Stripe credit billing, analytics and SEO, where each new tool is a self-contained plug-in module.**
+
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Drizzle ORM](https://img.shields.io/badge/Drizzle-ORM-C5F74F?logo=drizzle&logoColor=black)
+![Auth.js](https://img.shields.io/badge/Auth.js-v5-7C3AED?logo=auth0&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-billing-635BFF?logo=stripe&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-81_tests-6E9F18?logo=vitest&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ---
 
-## Table of Contents
+## Overview
 
-1. [What it is](#1-what-it-is)
-2. [Tech stack](#2-tech-stack)
-3. [Project structure](#3-project-structure)
-4. [Running locally](#4-running-locally)
-5. [Adding a new tool](#5-adding-a-new-tool)
-6. [Tool manifest reference](#6-tool-manifest-reference)
-7. [Credits and billing system](#7-credits-and-billing-system)
-8. [How to monetize](#8-how-to-monetize)
-9. [Stripe setup (step by step)](#9-stripe-setup-step-by-step)
-10. [Database schema](#10-database-schema)
-11. [API endpoints](#11-api-endpoints)
-12. [Auth architecture](#12-auth-architecture)
-13. [Search system](#13-search-system)
-14. [SEO / AEO system](#14-seo--aeo-system)
-15. [Analytics](#15-analytics)
-16. [Testing](#16-testing)
-17. [Deployment (Vercel)](#17-deployment-vercel)
-18. [Known gaps and next priorities](#18-known-gaps-and-next-priorities)
+Instead of building and hosting dozens of separate single-purpose apps, ForgeKit lets you write a tool once (a manifest, a pure logic module, a React component) and drop it into the platform. Every registered tool automatically gets:
 
----
-
-## 1. What it is
-
-ForgeKit is a **micro-tools platform**: a collection of small, focused utilities that share infrastructure. Instead of building and hosting dozens of separate apps, you build tools once and drop them into ForgeKit. They automatically get:
-
-- A URL at `/tools/[slug]`
-- Auth (optional, tool-level)
-- Credit billing (optional, tool-level)
+- A URL at `/tools/[slug]`, statically generated
+- Optional auth gating and optional per-use credit billing
 - Usage analytics
-- SEO metadata + JSON-LD schema + Open Graph image
-- Appearance in search and on the home page
+- SEO metadata, JSON-LD (`SoftwareApplication`) schema and a dynamic Open Graph image
+- A listing on the home page, in the sitemap and in the search API
 
-Currently live tools:
+The platform layer (`src/platform/*`) is strictly separated from tool code (`src/tools/*`), so adding a tool never touches billing, auth or analytics code.
 
-| Slug | Name | Credits | Category |
+### Tools currently registered
+
+| Slug | Name | Category | Credits |
 |---|---|---|---|
-| `text-counter` | Text Counter | 0 (free) | text |
-| `json-formatter` | JSON Formatter | 0 (free) | developer |
-| `base64-encoder` | Base64 Encoder/Decoder | 0 (free) | conversion |
-| `url-encoder` | URL Encoder/Decoder | 0 (free) | developer |
+| `text-counter` | Text Counter | text | 0 (free) |
+| `case-converter` | Case Converter | text | 0 (free) |
+| `word-frequency` | Word Frequency Counter | text | 0 (free) |
+| `json-formatter` | JSON Formatter | developer | 0 (free) |
+| `url-encoder` | URL Encoder / Decoder | developer | 0 (free) |
+| `base64-encoder` | Base64 Encoder / Decoder | conversion | 0 (free) |
+| `password-generator` | Password Generator | security | 0 (free) |
+| `lorem-ipsum-generator` | Lorem Ipsum Generator | productivity | 0 (free) |
 
----
+Any tool becomes paid by setting `creditsPerUse > 0` in its manifest.
 
-## 2. Tech stack
+## Key features
+
+- **Plug-in tool registry** — typed `ToolManifest` / `ToolModule` contracts and a `ToolRegistry`; one line in `src/tools/index.ts` registers a tool.
+- **Credit wallet with Stripe** — one-time credit packs via Stripe Checkout; webhook signature verification and idempotency (`stripe_events`) so retries never double-credit.
+- **Atomic credit deduction** — `UPDATE ... WHERE credits_balance >= N`, with a full `credit_transactions` ledger; HTTP 402 on insufficient credits.
+- **Edge-safe auth** — Auth.js v5 split into an Edge-compatible config (middleware route protection) and a Node config with the Drizzle adapter; Google OAuth, JWT sessions.
+- **SEO / AEO built in** — per-tool metadata, keywords, JSON-LD, 1200×630 OG images via `next/og`, dynamic `sitemap.ts` and `robots.ts`.
+- **Usage analytics** — fire-and-forget `tool_usage_events` tracking for anonymous and signed-in users, surfaced on the dashboard.
+- **In-memory search** — weighted scoring over name, tags, description and keywords, exposed as a server function and a REST endpoint.
+- **Typed configuration** — environment validated with Zod; TypeScript strict with `noUncheckedIndexedAccess`.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[Browser] --> MW["Next.js middleware<br/>(Edge auth check)"]
+    MW --> APP["Next.js 15 App Router<br/>pages + API routes"]
+    APP --> REG["Tool registry<br/>src/tools/*"]
+    APP --> PLAT["Platform services<br/>auth · credits · billing · analytics · search"]
+    PLAT --> DB[("PostgreSQL<br/>Drizzle ORM")]
+    PLAT -->|Checkout session| STRIPE[Stripe]
+    STRIPE -->|checkout.session.completed webhook| APP
+    MW -.-> GOOGLE[Google OAuth]
+    APP -.->|deploy| HOST["Vercel + Neon<br/>(or any Node host + Postgres)"]
+```
+
+Request flow for a paid tool: the tool component calls `POST /api/tools/[slug]/use` → the server reads `creditsPerUse` from the manifest → credits are deducted atomically and recorded in the ledger → an analytics event is emitted.
+
+## Tech stack
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js 15, App Router | Server components, SSR, file-based routing |
+| Framework | Next.js 15, App Router | Server components, SSR/SSG, file-based routing |
 | Language | TypeScript strict | `noUncheckedIndexedAccess`, `noImplicitReturns`, `noFallthroughCasesInSwitch` |
-| Database | PostgreSQL + Drizzle ORM | Type-safe queries, atomic transactions, migrations |
-| Auth | NextAuth.js v5 + DrizzleAdapter | Google OAuth out of the box, JWT sessions |
-| Styling | Tailwind CSS v4 + CSS variables | Theme-aware, no config files, fast |
-| Components | shadcn/ui pattern (Radix primitives) | Accessible, unstyled-first |
-| Billing | Stripe v22 | Credit pack purchases, webhook idempotency |
+| Database | PostgreSQL + Drizzle ORM (`postgres.js`) | Type-safe queries, atomic transactions, migrations |
+| Auth | NextAuth.js (Auth.js) v5 + DrizzleAdapter | Google OAuth out of the box, JWT sessions |
+| Styling | Tailwind CSS v4 + CSS variables | Theme-aware, no config file |
+| Components | shadcn/ui pattern (Radix primitives), Lucide icons | Accessible, unstyled-first |
+| Billing | Stripe | Credit pack purchases, webhook idempotency |
+| Validation | Zod | Typed env validation |
 | Testing | Vitest | Fast, ESM-native, `@/*` alias support |
 | DB migrations | Drizzle Kit | SQL migration files tracked in git |
 
----
+## Getting started
 
-## 3. Project structure
+### Prerequisites
 
-```
-ForgeKit/
-├── src/
-│   ├── app/                          # Next.js App Router pages and API routes
-│   │   ├── (marketing)/              # Public, unauthenticated pages
-│   │   │   └── page.tsx              # Home page — lists all active tools
-│   │   ├── (app)/                    # Authenticated shell (layout has auth check)
-│   │   │   ├── layout.tsx            # Shared authenticated layout
-│   │   │   ├── dashboard/            # User dashboard (/dashboard)
-│   │   │   ├── billing/              # Billing page (/billing)
-│   │   │   └── tools/[slug]/         # Tool renderer (/tools/json-formatter etc.)
-│   │   │       ├── page.tsx          # Tool page: metadata, JSON-LD, Component render
-│   │   │       └── opengraph-image.tsx  # Dynamic 1200×630 OG image per tool
-│   │   ├── (auth)/                   # Auth pages (sign-in)
-│   │   │   └── sign-in/page.tsx
-│   │   ├── api/                      # API routes
-│   │   │   ├── auth/[...nextauth]/   # NextAuth handlers
-│   │   │   ├── billing/checkout/     # POST → Stripe Checkout session
-│   │   │   ├── credits/balance/      # GET → user credit balance
-│   │   │   ├── tools/[slug]/use/     # POST → deduct credits + track analytics
-│   │   │   ├── tools/search/         # GET → search tools by query
-│   │   │   └── webhooks/stripe/      # POST → Stripe webhook (credit top-ups)
-│   │   ├── layout.tsx                # Root layout: fonts, globals.css
-│   │   ├── globals.css               # Tailwind v4 + CSS theme variables
-│   │   ├── sitemap.ts                # Dynamic sitemap (all active tools)
-│   │   ├── robots.ts                 # robots.txt (disallows /dashboard, /billing)
-│   │   ├── error.tsx                 # Global error boundary
-│   │   └── not-found.tsx             # 404 page
-│   │
-│   ├── platform/                     # Shared platform services (never imported by tool components)
-│   │   ├── auth/                     # Re-exports from src/auth.ts
-│   │   │   ├── index.ts              # Public API: auth, signIn, signOut, handlers
-│   │   │   └── types.ts              # AuthUser type
-│   │   ├── billing/
-│   │   │   ├── stripe.ts             # Stripe singleton (lazy init)
-│   │   │   ├── customers.ts          # getOrCreateStripeCustomer
-│   │   │   ├── checkout.ts           # createCheckoutSession
-│   │   │   ├── webhook.ts            # handleStripeWebhook (signature + idempotency)
-│   │   │   ├── packs.ts              # getCreditPacks() — pack definitions
-│   │   │   └── index.ts              # Public exports
-│   │   ├── credits/
-│   │   │   ├── service.ts            # getBalance, deductCredits, addCredits
-│   │   │   └── index.ts
-│   │   ├── analytics/
-│   │   │   ├── service.ts            # trackToolUsage, getUserRecentUsage, getToolUsageCount
-│   │   │   └── index.ts
-│   │   └── search/
-│   │       ├── service.ts            # searchTools() — in-memory scoring
-│   │       └── index.ts
-│   │
-│   ├── tools/                        # All tool modules
-│   │   ├── _registry/
-│   │   │   ├── types.ts              # ToolManifest, ToolProps, ToolModule interfaces
-│   │   │   ├── registry.ts           # ToolRegistry class
-│   │   │   └── index.ts              # Public exports
-│   │   ├── index.ts                  # Bootstrap: registers ALL tools (add new ones here)
-│   │   ├── text-counter/             # Tool: text-counter
-│   │   ├── json-formatter/           # Tool: json-formatter
-│   │   ├── base64-encoder/           # Tool: base64-encoder
-│   │   └── url-encoder/              # Tool: url-encoder
-│   │
-│   ├── db/
-│   │   ├── client.ts                 # Singleton db connection (postgres.js)
-│   │   ├── seed.ts                   # Dev seed: creates dev@forgekit.local w/ 500 credits
-│   │   └── schema/
-│   │       ├── users.ts              # users, accounts, sessions, verificationTokens
-│   │       ├── billing.ts            # stripe_customers, credit_transactions, stripe_events
-│   │       ├── analytics.ts          # tool_usage_events
-│   │       └── index.ts              # Re-exports all tables
-│   │
-│   ├── ui/
-│   │   └── components/
-│   │       ├── ui/                   # Primitive components (Button, etc.)
-│   │       └── shared/               # ForgeKit-specific shared components (ToolCard)
-│   │
-│   ├── lib/
-│   │   ├── env.ts                    # Typed env validation via Zod
-│   │   └── utils.ts                  # cn(), slugify(), assertNever()
-│   │
-│   ├── auth.config.ts                # Edge-compatible auth config (no DB)
-│   ├── auth.ts                       # Full auth with DrizzleAdapter
-│   └── middleware.ts                 # Route protection (4 lines — uses auth.config.ts)
-│
-├── drizzle/                          # Migration SQL files (tracked in git)
-│   └── 0000_cool_timeslip.sql        # Initial schema: 8 tables
-├── tests/
-│   └── tools/                        # Unit tests per tool (logic.ts only)
-├── .env.example                      # Template for environment variables
-├── start.sh                          # First-run setup script
-├── drizzle.config.ts
-├── vitest.config.ts
-├── next.config.ts
-└── tsconfig.json
-```
+- Node.js 20+ and npm
+- A PostgreSQL database (local Docker, Neon or Supabase)
+- Optional: Google OAuth credentials, Stripe test keys and the Stripe CLI
 
----
-
-## 4. Running locally
+### Quick start
 
 ```bash
-# First time
+git clone <this-repo> forgekit && cd forgekit
 ./start.sh
-# Handles: .env creation, AUTH_SECRET generation, DATABASE_URL prompt, npm install,
-# db:push, optional seed, npm run dev
-
-# Subsequent runs
-npm run dev          # http://localhost:3000
-
-# Useful commands
-npm run typecheck    # tsc --noEmit (zero errors enforced)
-npm run lint         # ESLint
-npm run test         # Vitest (40 unit tests)
-npm run db:studio    # Drizzle Studio GUI at https://local.drizzle.studio
-npm run db:seed      # Re-seed dev user
 ```
+
+`start.sh` creates `.env` from `.env.example`, generates `AUTH_SECRET`, prompts for `DATABASE_URL`, runs `npm install` and `db:push`, optionally seeds a dev user (`dev@forgekit.local`, 500 credits) and starts the dev server.
+
+### Manual setup
+
+```bash
+cp .env.example .env          # fill in DATABASE_URL and AUTH_SECRET at minimum
+npm install
+npm run db:push               # or: npm run db:migrate
+npm run db:seed               # optional dev user
+npm run dev                   # http://localhost:3000
+```
+
+A local database with Docker:
+
+```bash
+docker run -d --name forgekit-db -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=forgekit -p 5432:5432 postgres:16
+# DATABASE_URL=postgresql://postgres:secret@localhost:5432/forgekit
+```
+
+### Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Dev server (Turbopack) |
+| `npm run build` / `npm start` | Production build / server |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm test` / `npm run test:watch` | Vitest unit tests |
+| `npm run db:generate` | Generate a SQL migration from schema changes |
+| `npm run db:migrate` / `npm run db:push` | Apply migrations / push schema (dev) |
+| `npm run db:studio` | Drizzle Studio |
+| `npm run db:seed` | Seed the dev user |
 
 ### Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `AUTH_SECRET` | Yes | 32-byte random secret for JWT signing. Run: `openssl rand -base64 32` |
-| `AUTH_GOOGLE_ID` | For OAuth | Google OAuth client ID |
-| `AUTH_GOOGLE_SECRET` | For OAuth | Google OAuth client secret |
-| `NEXT_PUBLIC_APP_URL` | Yes | Full URL of the app (e.g. `https://forgekit.com`) |
+| `AUTH_SECRET` | Yes | Random secret for JWT signing (`openssl rand -base64 32`) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | For OAuth | Google OAuth client |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public base URL of the app |
 | `STRIPE_SECRET_KEY` | For billing | Stripe secret key (`sk_test_...` in dev) |
 | `STRIPE_WEBHOOK_SECRET` | For billing | Stripe webhook signing secret (`whsec_...`) |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | For billing | Stripe publishable key |
-| `STRIPE_PRICE_STARTER` | Optional | Stripe Price ID for 100-credit pack |
-| `STRIPE_PRICE_PRO` | Optional | Stripe Price ID for 500-credit pack |
-| `STRIPE_PRICE_POWER` | Optional | Stripe Price ID for 2000-credit pack |
+| `STRIPE_PRICE_STARTER` / `_PRO` / `_POWER` | Optional | Stripe Price IDs for the 100 / 500 / 2000-credit packs |
 
-**Database options (no local PostgreSQL installed):**
+## Project structure
 
-- **Neon** (free, serverless): neon.tech → New project → Connection string
-- **Supabase** (free tier): supabase.com → Project Settings → Database → URI
-- **Docker local**: `docker run -d --name forgekit-db -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=forgekit -p 5432:5432 postgres:16` → `DATABASE_URL=postgresql://postgres:secret@localhost:5432/forgekit`
+```
+forgekit/
+├── src/
+│   ├── app/                 # App Router: (marketing), (auth), (app) route groups + api/
+│   │   └── api/             # auth, billing/checkout, credits/balance, tools/[slug]/use, tools/search, webhooks/stripe
+│   ├── platform/            # Shared services: auth, billing, credits, analytics, search
+│   ├── tools/               # _registry/ + one folder per tool (manifest, logic, component, index)
+│   ├── db/                  # Drizzle client, schema (users, billing, analytics), seed
+│   ├── ui/components/       # UI primitives and shared components
+│   ├── lib/                 # env validation (Zod), utils
+│   ├── auth.config.ts       # Edge-compatible auth config
+│   ├── auth.ts              # Full auth with DrizzleAdapter
+│   └── middleware.ts        # Route protection
+├── drizzle/                 # SQL migrations (tracked)
+├── tests/tools/             # Unit tests per tool (logic.ts)
+├── start.sh                 # First-run setup script
+└── .env.example
+```
 
 ---
 
-## 5. Adding a new tool
+# Developer guide
+
+## Adding a new tool
 
 Every tool lives in its own directory under `src/tools/[slug]/`. Four files, always the same pattern.
 
@@ -324,7 +288,7 @@ describe('processMyTool', () => {
 
 ---
 
-## 6. Tool manifest reference
+## Tool manifest reference
 
 ```typescript
 interface ToolManifest {
@@ -350,7 +314,7 @@ interface ToolManifest {
 
 ---
 
-## 7. Credits and billing system
+## Credits and billing system
 
 ### How credits flow
 
@@ -400,7 +364,7 @@ await addCredits(userId, 50, 'bonus')
 
 ---
 
-## 8. How to monetize
+## Monetization options
 
 ### Option A — Credits model (already built)
 
@@ -434,7 +398,7 @@ Tools are self-contained React components that receive `ToolProps`. They can be 
 
 ---
 
-## 9. Stripe setup (step by step)
+## Stripe setup (step by step)
 
 ### Development (test mode)
 
@@ -488,7 +452,7 @@ stripe trigger checkout.session.completed
 
 ---
 
-## 10. Database schema
+## Database schema
 
 8 tables total. One migration file: `drizzle/0000_cool_timeslip.sql`.
 
@@ -559,7 +523,7 @@ Indexed on `(tool_slug, created_at)` and `(user_id, created_at)`.
 
 ---
 
-## 11. API endpoints
+## API endpoints
 
 ### `POST /api/billing/checkout`
 
@@ -605,7 +569,7 @@ NextAuth.js handler. Manages OAuth callbacks, session creation, token refresh.
 
 ---
 
-## 12. Auth architecture
+## Auth architecture
 
 Two files, both required:
 
@@ -627,7 +591,7 @@ Two files, both required:
 Defined in `src/auth.config.ts`:
 
 ```typescript
-const PROTECTED_PREFIXES = ['/dashboard', '/billing']
+const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/billing']
 ```
 
 Add any prefix here to require auth. The middleware handles the redirect to `/sign-in?callbackUrl=...` automatically.
@@ -650,7 +614,7 @@ const userId = session?.user?.id  // undefined if not logged in
 
 ---
 
-## 13. Search system
+## Search system
 
 `src/platform/search/service.ts` — in-memory scoring, no external dependencies.
 
@@ -687,7 +651,7 @@ const tools: ToolManifest[] = await res.json()
 
 ---
 
-## 14. SEO / AEO system
+## SEO / AEO system
 
 Every tool page at `/tools/[slug]` automatically gets:
 
@@ -734,7 +698,7 @@ Write `longDescription` as a paragraph (2-3 sentences) that answers the question
 
 ---
 
-## 15. Analytics
+## Analytics
 
 `src/platform/analytics/service.ts`
 
@@ -769,7 +733,7 @@ All data is in the `tool_usage_events` table. Useful queries:
 
 ---
 
-## 16. Testing
+## Testing
 
 ```bash
 npm run test          # Run all tests once
@@ -782,11 +746,15 @@ Tests live in `tests/tools/`. Each tool's `logic.ts` file has a corresponding te
 
 | File | Tests |
 |---|---|
+| `tests/tools/password-generator.test.ts` | 13 |
 | `tests/tools/text-counter.test.ts` | 11 |
 | `tests/tools/json-formatter.test.ts` | 11 |
+| `tests/tools/case-converter.test.ts` | 11 |
 | `tests/tools/base64-encoder.test.ts` | 9 |
 | `tests/tools/url-encoder.test.ts` | 9 |
-| **Total** | **40** |
+| `tests/tools/word-frequency.test.ts` | 9 |
+| `tests/tools/lorem-ipsum-generator.test.ts` | 8 |
+| **Total** | **81** |
 
 ### What to test
 
@@ -817,7 +785,7 @@ describe('myFunction', () => {
 
 ---
 
-## 17. Deployment (Vercel)
+## Deployment (Vercel)
 
 ### First deploy
 
@@ -863,7 +831,7 @@ Vercel Dashboard → Project → Settings → Domains → Add domain
 
 ---
 
-## 18. Known gaps and next priorities
+## Known gaps and next priorities
 
 ### Must-do before scaling
 
@@ -889,3 +857,9 @@ Vercel Dashboard → Project → Settings → Domains → Add domain
 - **Sessions**: JWT sessions can't be instantly revoked. If you need instant revocation (e.g. ban a user mid-session), switch to `strategy: 'database'` in `src/auth.ts`.
 - **Search**: In-memory search loads all tool manifests on each request. Fine at 500 tools, expensive at 5,000. Move to PG FTS or Algolia.
 - **Tool registration**: `src/tools/index.ts` is a manual list. At 100+ tools, consider auto-discovery via a build script that scans `src/tools/*/index.ts`.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Gabriel Huertas
